@@ -323,9 +323,9 @@ export default function UploadScreen({ user: propUser, onNavigate }) {
         mimeType: item.mimeType,
         dimensions: data.image_properties ? data.image_properties.split("|")[0].replace("Dimensions:", "").trim() : "1920 × 1080 px",
         summary: summary,
-        flaggedBy: user ? user.full_name : "4-Model Image Ensemble",
-        status: risk === "high" ? "flagged" : "cleared",
-        signals: (data.forensic_indicators_list || []).map((ind) => ({
+        flaggedBy: user ? user.full_name : "5-Model Image Ensemble",
+        status: risk === "high" ? "flagged" : (risk === "medium" ? "under_review" : "cleared"),
+        signals: (data.forensic_indicators || []).map((ind) => ({
           label: ind,
           value: score,
           status: risk
@@ -342,7 +342,7 @@ export default function UploadScreen({ user: propUser, onNavigate }) {
           "Selected Model": imageModelChoice,
           "Domain Note": data.model_training_domain_note || "",
           "EXIF Note": data.exif_note || "Standard metadata stream",
-          "Analysis Pipeline": `4-Model Ensemble (${imageModelChoice === "All models combined (recommended)" ? "Combined Average" : imageModelChoice})`,
+          "Analysis Pipeline": `5-Model Ensemble (${imageModelChoice === "All models combined (recommended)" ? "Combined Average" : imageModelChoice})`,
           "ELA Heatmap": data.ela_heatmap || "",
           "FFT Spectrum": data.fft_magnitude_spectrum || ""
         },

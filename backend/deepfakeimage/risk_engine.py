@@ -103,8 +103,8 @@ def independent_metadata_signal(exif_context):
     photos constantly) — only a specific suspicious software tag gets a
     meaningful point bump.
     """
-    if not exif_context.get("available"):
-        return 3, None  # small, uninformative on its own — no indicator text needed
+    if not exif_context or not exif_context.get("available"):
+        return 0, None
 
     software = (exif_context.get("software_tag") or "").lower()
     suspicious_tools = ["photoshop", "gimp", "midjourney", "stable diffusion",

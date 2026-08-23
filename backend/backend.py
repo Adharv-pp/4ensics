@@ -474,7 +474,7 @@ async def analyze_media(
             score_val = img_result["risk_score_num"]
             priority = img_result["priority_level"]
             risk_band = "HIGH" if priority == "High" else ("MEDIUM" if priority == "Medium" else "LOW")
-            verdict = "SYNTHETIC" if priority != "Low" else "AUTHENTIC"
+            verdict = "SYNTHETIC" if priority == "High" else ("UNCERTAIN" if priority == "Medium" else "AUTHENTIC")
 
             report = create_analysis_report(
                 db=db,
