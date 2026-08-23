@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deepfake Detector</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-black text-zinc-100 min-h-screen font-sans flex flex-col justify-center items-center p-4">
+
+    <div class="w-full max-w-md space-y-8">
+        
+        <div class="space-y-1">
+            <h1 class="text-xl font-medium tracking-tight text-zinc-200">Deepfake Detection</h1>
+            <p class="text-xs text-zinc-500">Upload video to run ViViT classification pipeline.</p>
+        </div>
+
+        <div id="dropzone" class="border border-zinc-800 rounded-lg p-8 text-center cursor-pointer bg-zinc-950 hover:border-zinc-700 transition-colors duration-200">
+            <input type="file" id="videoInput" accept="video/mp4,video/mkv,video/avi" class="hidden">
+            
+            <div id="uploadPrompt" class="space-y-2 py-4">
+                <p class="text-sm text-zinc-400">Select or drop video file</p>
+                <p class="text-xs text-zinc-600">MP4, MKV, AVI</p>
+            </div>
+
+            <div id="previewContainer" class="hidden space-y-4">
+                <video id="videoPreview" controls class="mx-auto max-h-48 rounded bg-black border border-zinc-900"></video>
+                <p id="fileName" class="text-xs text-zinc-500 font-mono truncate"></p>
+                <button type="button" id="changeFileBtn" class="text-xs text-zinc-400 hover:text-white transition-colors">Remove file</button>
+            </div>
+        </div>
+
+        <button id="analyzeBtn" disabled class="w-full bg-zinc-900 text-zinc-600 font-medium py-2.5 px-4 rounded text-sm cursor-not-allowed transition-all duration-200">
+            No file selected
+        </button>
+
+        <div id="loadingState" class="hidden text-center py-2">
+            <p class="text-xs text-zinc-500 animate-pulse font-mono">processing matrix transforms...</p>
+        </div>
+
+        <div id="resultContainer" class="hidden border border-zinc-800 bg-zinc-950/50 rounded-lg p-5 transition-all duration-300 opacity-0 transform translate-y-1">
+            <div class="flex justify-between items-center">
+                <div>
+                    <span class="text-[10px] uppercase tracking-wider text-zinc-500 block mb-0.5">Verdict</span>
+                    <div id="verdictText" class="text-base font-medium tracking-wide">---</div>
+                </div>
+                <div class="text-right">
+                    <span class="text-[10px] uppercase tracking-wider text-zinc-500 block mb-0.5">Confidence</span>
+                    <div id="confidencePct" class="text-base font-mono font-medium">0%</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const dropzone = document.getElementById('dropzone');
+        const videoInput = document.getElementById('videoInput');
+        const uploadPrompt = document.getElementById('uploadPrompt');
+        const previewContainer = document.getElementById('previewContainer');
+        const videoPreview = document.getElementById('videoPreview');
+        const fileName = document.getElementById('fileName');
+        const changeFileBtn = document.getElementById('changeFileBtn');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const loadingState = document.getElementById('loadingState');
+        const resultContainer = document.getElementById('resultContainer');
+        const verdictText = document.getElementById('verdictText');
+        const confidencePct = document.getElementById('confidencePct');
+
+        dropzone.addEventListener('click', (e) => {
+            if (e.target !== changeFileBtn && !videoPreview.contains(e.target)) videoInput.click();
+        });
+
+        videoInput.addEventListener('change', handleFileSelect);
+
+        dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('border-zinc-600'); });
+        dropzone.addEventListener('dragleave', () => { dropzone.classList.remove('border-zinc-600'); });
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('border-zinc-600');
+            if (e.dataTransfer.files.length > 0) {
+                videoInput.files = e.dataTransfer.files;
+                handleFileSelect();
+            }
+        });
+
+        changeFileBtn.addEventListener('click', (e) => { e.stopPropagation(); resetState(); });
+
+        function handleFileSelect() {
+            const file = videoInput.files[0];
+            if (!file) return;
+
+            fileName.innerText = file.name;
+            videoPreview.src = URL.createObjectURL(file);
+
+            uploadPrompt.classList.add('hidden');
+            previewContainer.classList.remove('hidden');
+
+            analyzeBtn.disabled = false;
+            analyzeBtn.className = "w-full bg-zinc-200 text-black hover:bg-white font-medium py-2.5 px-4 rounded text-sm cursor-pointer transition-all duration-200 active:scale-[0.99]";
+            analyzeBtn.innerText = "Analyze Stream";
+            
+            hideResult();
+        }
+
+        function resetState() {
+            videoInput.value = '';
+            videoPreview.src = '';
+            uploadPrompt.classList.remove('hidden');
+            previewContainer.classList.add('hidden');
+            
+            analyzeBtn.disabled = true;
+            analyzeBtn.className = "w-full bg-zinc-900 text-zinc-600 font-medium py-2.5 px-4 rounded text-sm cursor-not-allowed transition-all duration-200";
+            analyzeBtn.innerText = "No file selected";
+            
+            hideResult();
+        }
+
+        function hideResult() {
+            resultContainer.classList.add('hidden', 'opacity-0', 'translate-y-1');
+        }
+
+        analyzeBtn.addEventListener('click', async () => {
+            const file = videoInput.files[0];
+            if (!file) return;
+
+            analyzeBtn.disabled = true;
+            analyzeBtn.innerText = "Running inference...";
+            loadingState.classList.remove('hidden');
+            hideResult();
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            try {
+                const response = await fetch("http://192.168.29.106:8000/detect", { method: "POST", body: formData });
+                if (!response.ok) throw new Error();
+                const data = await response.json();
+
+                if (data.status === "success") {
+                    verdictText.innerText = data.prediction;
+                    verdictText.className = data.prediction === "REAL" ? "text-zinc-200 text-base font-medium tracking-wide" : "text-zinc-200 text-base font-medium tracking-wide";
+                    confidencePct.innerText = `${data.confidence}%`;
+                    
+                    resultContainer.classList.remove('hidden');
+                    setTimeout(() => resultContainer.classList.remove('opacity-0', 'translate-y-1'), 50);
+                }
+            } catch (error) {
+                alert("API connection failed. Ensure app.py is active.");
+            } finally {
+                loadingState.classList.add('hidden');
+                analyzeBtn.disabled = false;
+                analyzeBtn.innerText = "Analyze Stream";
+            }
+        });
+    </script>
+</body>
+</html>

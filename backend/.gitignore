@@ -1,0 +1,25 @@
+# Python environment
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# ML Weights & Checkpoints
+models/vivit/
+models/audio/*.pth
+*.pth
+*.pt
+*.safetensors
+*.bin
+
+# Temp Forensic Audio/Video Extracts
+temp_*
+*.wav
+*.mp4
+*.avi
+*.mkv
+
+# Environment & Credentials
+.env
+.env.*
+!.env.example

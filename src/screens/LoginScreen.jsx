@@ -1,30 +1,66 @@
 import { useState } from "react";
-import { Eye, EyeOff, ShieldAlert } from "lucide-react";
+import { Eye, EyeOff, ShieldAlert, AlertCircle, CheckCircle2 } from "lucide-react";
+import { API_BASE_URL } from "../utils/constants";
 
 export default function LoginScreen({ onLogin, onNavigate }) {
   const [showPass, setShowPass] = useState(false);
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
+    if (!email.trim() || !pass) {
+      setErrorMsg("Please enter both email/badge ID and password.");
+      return;
+    }
+
     setLoading(true);
-    setTimeout(() => {
+    setErrorMsg("");
+    setSuccessMsg("");
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: email.trim(),
+          password: pass
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Authentication failed. Please check credentials.");
+      }
+
+      setSuccessMsg(`Authenticated as ${data.user.full_name}`);
+      localStorage.setItem("4ensics_user", JSON.stringify(data.user));
+      localStorage.setItem("4ensics_token", data.session_id);
+
+      setTimeout(() => {
+        setLoading(false);
+        onLogin(data.user);
+      }, 400);
+
+    } catch (err) {
       setLoading(false);
-      onLogin();
-    }, 900);
+      setErrorMsg(err.message || "Failed to connect to authentication service.");
+    }
   };
 
   return (
     <div
-      className="min-h-screen w-full flex items-center justify-center"
+      className="min-h-screen w-full flex items-center justify-center py-10"
       style={{
         background: "#0D0E12",
         fontFamily: "'DM Sans', sans-serif",
         backgroundImage: "radial-gradient(ellipse 60% 40% at 50% 0%, rgba(255,122,0,0.06) 0%, transparent 70%)",
       }}
     >
-      {/* Grid pattern */}
+      {/* Subtle grid pattern */}
       <div
         className="absolute inset-0 opacity-[0.03]"
         style={{
@@ -35,9 +71,9 @@ export default function LoginScreen({ onLogin, onNavigate }) {
 
       <div className="relative w-full max-w-sm px-4">
         {/* Logo */}
-        <div className="flex flex-col items-center mb-8">
+        <div className="flex flex-col items-center mb-6">
           <div
-            className="w-12 h-12 rounded flex items-center justify-center mb-4"
+            className="w-12 h-12 rounded flex items-center justify-center mb-3 shadow-lg"
             style={{ background: "rgba(255,122,0,0.12)", border: "1px solid rgba(255,122,0,0.3)" }}
           >
             <ShieldAlert size={22} color="#FF7A00" />
@@ -55,17 +91,38 @@ export default function LoginScreen({ onLogin, onNavigate }) {
 
         {/* Card */}
         <div
-          className="rounded-lg p-6 border"
+          className="rounded-lg p-6 border shadow-2xl"
           style={{ background: "#13151C", borderColor: "rgba(255,255,255,0.07)" }}
         >
-          <p className="text-sm font-medium mb-5" style={{ color: "#8F92A1" }}>
+          <p className="text-sm font-medium mb-4" style={{ color: "#8F92A1" }}>
             Sign in to your agency account
           </p>
+
+          {/* Error & Success Messages */}
+          {errorMsg && (
+            <div
+              className="mb-4 p-2.5 rounded text-xs flex items-center gap-2"
+              style={{ background: "rgba(244,67,54,0.1)", border: "1px solid rgba(244,67,54,0.3)", color: "#F44336" }}
+            >
+              <AlertCircle size={14} className="shrink-0" />
+              <span>{errorMsg}</span>
+            </div>
+          )}
+
+          {successMsg && (
+            <div
+              className="mb-4 p-2.5 rounded text-xs flex items-center gap-2"
+              style={{ background: "rgba(76,175,80,0.1)", border: "1px solid rgba(76,175,80,0.3)", color: "#4CAF50" }}
+            >
+              <CheckCircle2 size={14} className="shrink-0" />
+              <span>{successMsg}</span>
+            </div>
+          )}
 
           <div className="flex flex-col gap-4">
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: "#8F92A1", fontFamily: "'DM Sans', sans-serif" }}>
-                Username / Badge ID
+                Username / Agency Email
               </label>
               <input
                 value={email}
@@ -80,6 +137,7 @@ export default function LoginScreen({ onLogin, onNavigate }) {
                 }}
                 onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(255,122,0,0.5)")}
                 onBlur={(e) => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)")}
+                onKeyDown={(e) => e.key === "Enter" && handleLogin()}
               />
             </div>
             <div>
@@ -104,8 +162,9 @@ export default function LoginScreen({ onLogin, onNavigate }) {
                   onKeyDown={(e) => e.key === "Enter" && handleLogin()}
                 />
                 <button
+                  type="button"
                   onClick={() => setShowPass(!showPass)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer"
                   style={{ color: "#8F92A1" }}
                 >
                   {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
@@ -114,7 +173,7 @@ export default function LoginScreen({ onLogin, onNavigate }) {
             </div>
 
             <div className="flex justify-end">
-              <button onClick={() => onNavigate("forgot-password")} className="text-xs transition-colors" style={{ color: "#FF7A00" }}>
+              <button onClick={() => onNavigate("forgot-password")} className="text-xs transition-colors cursor-pointer" style={{ color: "#FF7A00" }}>
                 Forgot password?
               </button>
             </div>
@@ -122,7 +181,7 @@ export default function LoginScreen({ onLogin, onNavigate }) {
             <button
               onClick={handleLogin}
               disabled={loading}
-              className="w-full py-2.5 rounded text-sm font-semibold transition-all"
+              className="w-full py-2.5 rounded text-sm font-semibold transition-all cursor-pointer shadow-md"
               style={{
                 background: loading ? "rgba(255,122,0,0.5)" : "#FF7A00",
                 color: "#0D0E12",
@@ -133,18 +192,18 @@ export default function LoginScreen({ onLogin, onNavigate }) {
             </button>
           </div>
 
-          <div className="mt-5 pt-5 border-t text-center" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+          <div className="mt-5 pt-4 border-t text-center" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
             <p className="text-xs" style={{ color: "#8F92A1" }}>
               No account?{" "}
-              <button onClick={() => onNavigate("request-access")} className="font-medium transition-colors" style={{ color: "#FF7A00" }}>
+              <button onClick={() => onNavigate("request-access")} className="font-medium transition-colors cursor-pointer" style={{ color: "#FF7A00" }}>
                 Request Access
               </button>
             </p>
           </div>
         </div>
 
-        <p className="text-center text-xs mt-6" style={{ color: "#3A3D4A" }}>
-          RESTRICTED — Authorized Personnel Only · v2.4.1
+        <p className="text-center text-xs mt-6" style={{ color: "#4A4E5E" }}>
+          RESTRICTED — Authorized Agency Personnel Only
         </p>
       </div>
     </div>

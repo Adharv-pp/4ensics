@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { ShieldAlert, CheckCircle2, AlertTriangle, Info } from "lucide-react";
+import { ShieldAlert, CheckCircle2, AlertTriangle, Info, AlertCircle } from "lucide-react";
+import { API_BASE_URL } from "../utils/constants";
 
 export default function RequestAccessScreen({ onNavigate }) {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -11,7 +13,7 @@ export default function RequestAccessScreen({ onNavigate }) {
     badgeId: "",
     agency: "",
     department: "",
-    title: "",
+    title: "Forensic Analyst",
     justification: "",
   });
 
@@ -19,10 +21,29 @@ export default function RequestAccessScreen({ onNavigate }) {
 
   const isValid = form.firstName && form.lastName && form.email && form.badgeId && form.agency && form.justification;
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!isValid) return;
     setLoading(true);
-    setTimeout(() => { setLoading(false); setSubmitted(true); }, 1200);
+    setErrorMsg("");
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/request-access`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form)
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Failed to submit request.");
+      }
+
+      setLoading(false);
+      setSubmitted(true);
+    } catch (err) {
+      setLoading(false);
+      setErrorMsg(err.message || "Could not connect to access authorization server.");
+    }
   };
 
   const inputStyle = {
@@ -52,9 +73,9 @@ export default function RequestAccessScreen({ onNavigate }) {
       />
       <div className="relative w-full max-w-lg px-4">
         {/* Logo */}
-        <div className="flex flex-col items-center mb-8">
+        <div className="flex flex-col items-center mb-6">
           <div
-            className="w-12 h-12 rounded flex items-center justify-center mb-4"
+            className="w-12 h-12 rounded flex items-center justify-center mb-3 shadow-lg"
             style={{ background: "rgba(255,122,0,0.12)", border: "1px solid rgba(255,122,0,0.3)" }}
           >
             <ShieldAlert size={22} color="#FF7A00" />
@@ -67,14 +88,24 @@ export default function RequestAccessScreen({ onNavigate }) {
           </p>
         </div>
 
+        {errorMsg && (
+          <div
+            className="mb-4 p-3 rounded text-xs flex items-center gap-2"
+            style={{ background: "rgba(244,67,54,0.1)", border: "1px solid rgba(244,67,54,0.3)", color: "#F44336" }}
+          >
+            <AlertCircle size={14} className="shrink-0" />
+            <span>{errorMsg}</span>
+          </div>
+        )}
+
         {!submitted ? (
-          <div className="rounded-lg border" style={{ background: "#13151C", borderColor: "rgba(255,255,255,0.07)" }}>
+          <div className="rounded-lg border shadow-2xl" style={{ background: "#13151C", borderColor: "rgba(255,255,255,0.07)" }}>
             <div className="px-6 pt-6 pb-4 border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
               <h2 className="text-base font-semibold mb-1" style={{ fontFamily: "'Poppins', sans-serif", color: "#E4E5EA" }}>
                 Request Platform Access
               </h2>
               <p className="text-xs" style={{ color: "#8F92A1" }}>
-                Access is restricted to authorized law enforcement and forensic personnel. All requests are reviewed by a system administrator within 48 hours.
+                Access is restricted to authorized law enforcement and forensic personnel. Requests are processed by an administrator.
               </p>
             </div>
 
@@ -107,7 +138,7 @@ export default function RequestAccessScreen({ onNavigate }) {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium mb-1.5" style={{ color: "#8F92A1" }}>Agency / Force <span style={{ color: "#F44336" }}>*</span></label>
-                  <input value={form.agency} onChange={set("agency")} placeholder="Metro Police Department" className="w-full rounded px-3 py-2.5 text-sm outline-none" style={inputStyle} onFocus={focusOn} onBlur={focusOff} />
+                  <input value={form.agency} onChange={set("agency")} placeholder="State Police Department" className="w-full rounded px-3 py-2.5 text-sm outline-none" style={inputStyle} onFocus={focusOn} onBlur={focusOff} />
                 </div>
                 <div>
                   <label className="block text-xs font-medium mb-1.5" style={{ color: "#8F92A1" }}>Department / Unit</label>
@@ -118,15 +149,13 @@ export default function RequestAccessScreen({ onNavigate }) {
               {/* Job title */}
               <div>
                 <label className="block text-xs font-medium mb-1.5" style={{ color: "#8F92A1" }}>Job Title / Role</label>
-                <select value={form.title} onChange={set("title")} className="w-full rounded px-3 py-2.5 text-sm outline-none" style={inputStyle} onFocus={focusOn} onBlur={focusOff}>
-                  <option value="">Select role…</option>
-                  <option>Forensic Analyst</option>
-                  <option>Senior Forensic Analyst</option>
-                  <option>Digital Evidence Officer</option>
-                  <option>Detective</option>
-                  <option>Investigating Officer</option>
-                  <option>Supervisory Analyst</option>
-                  <option>Other</option>
+                <select value={form.title} onChange={set("title")} className="w-full rounded px-3 py-2.5 text-sm outline-none cursor-pointer" style={inputStyle} onFocus={focusOn} onBlur={focusOff}>
+                  <option value="Forensic Analyst">Forensic Analyst</option>
+                  <option value="Senior Forensic Analyst">Senior Forensic Analyst</option>
+                  <option value="Digital Evidence Officer">Digital Evidence Officer</option>
+                  <option value="Detective">Detective</option>
+                  <option value="Investigating Officer">Investigating Officer</option>
+                  <option value="Supervisory Analyst">Supervisory Analyst</option>
                 </select>
               </div>
 
@@ -154,14 +183,14 @@ export default function RequestAccessScreen({ onNavigate }) {
               >
                 <AlertTriangle size={13} color="#FFC107" className="shrink-0 mt-0.5" />
                 <span>
-                  Submitting a false or unauthorized request is a disciplinary offence. By submitting, you confirm that all information provided is accurate and that you are an authorized member of your agency.
+                  By submitting, you confirm that all information provided is accurate and that you are an authorized member of your agency.
                 </span>
               </div>
 
               <button
                 onClick={handleSubmit}
                 disabled={loading || !isValid}
-                className="w-full py-2.5 rounded text-sm font-semibold transition-all"
+                className="w-full py-2.5 rounded text-sm font-semibold transition-all cursor-pointer shadow-md"
                 style={{
                   background: loading || !isValid ? "rgba(255,122,0,0.4)" : "#FF7A00",
                   color: "#0D0E12",
@@ -169,14 +198,14 @@ export default function RequestAccessScreen({ onNavigate }) {
                   cursor: !isValid ? "not-allowed" : "pointer",
                 }}
               >
-                {loading ? "Submitting request…" : "Submit Access Request"}
+                {loading ? "Submitting Request…" : "Submit Access Request"}
               </button>
             </div>
 
             <div className="px-6 py-4 border-t text-center" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
               <p className="text-xs" style={{ color: "#8F92A1" }}>
                 Already have an account?{" "}
-                <button onClick={() => onNavigate("login")} className="font-medium" style={{ color: "#FF7A00" }}>
+                <button onClick={() => onNavigate("login")} className="font-medium cursor-pointer" style={{ color: "#FF7A00" }}>
                   Sign In
                 </button>
               </p>
@@ -184,7 +213,7 @@ export default function RequestAccessScreen({ onNavigate }) {
           </div>
         ) : (
           /* Confirmation screen */
-          <div className="rounded-lg border p-8 flex flex-col items-center text-center" style={{ background: "#13151C", borderColor: "rgba(255,255,255,0.07)" }}>
+          <div className="rounded-lg border p-8 flex flex-col items-center text-center shadow-2xl" style={{ background: "#13151C", borderColor: "rgba(255,255,255,0.07)" }}>
             <div
               className="w-16 h-16 rounded-full flex items-center justify-center mb-5"
               style={{ background: "rgba(76,175,80,0.12)", border: "1px solid rgba(76,175,80,0.25)" }}
@@ -192,49 +221,17 @@ export default function RequestAccessScreen({ onNavigate }) {
               <CheckCircle2 size={30} color="#4CAF50" />
             </div>
             <h2 className="text-lg font-bold mb-2" style={{ fontFamily: "'Poppins', sans-serif", color: "#E4E5EA" }}>
-              Request Submitted
+              Request Received
             </h2>
-            <p className="text-sm mb-1" style={{ color: "#8F92A1" }}>Your access request has been received.</p>
+            <p className="text-sm mb-1" style={{ color: "#8F92A1" }}>Your access application has been recorded.</p>
             <p className="text-xs mb-6" style={{ color: "#8F92A1" }}>
-              A system administrator will review your application and respond to{" "}
-              <span className="font-mono" style={{ color: "#FF7A00" }}>{form.email}</span>{" "}
-              within <span style={{ color: "#E4E5EA" }}>48 hours</span>.
+              A system administrator will review your application for{" "}
+              <span className="font-mono" style={{ color: "#FF7A00" }}>{form.email}</span>.
             </p>
-
-            <div className="w-full rounded-lg p-4 mb-6 text-left" style={{ background: "#0D0E12", border: "1px solid rgba(255,255,255,0.06)" }}>
-              <p className="text-xs font-semibold mb-3 uppercase tracking-widest" style={{ color: "#8F92A1", fontFamily: "'Poppins', sans-serif" }}>
-                Request Summary
-              </p>
-              {[
-                ["Name", `${form.firstName} ${form.lastName}`],
-                ["Badge ID", form.badgeId],
-                ["Agency", form.agency],
-                ["Email", form.email],
-              ].map(([k, v]) => (
-                <div key={k} className="flex justify-between py-1.5 border-b" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
-                  <span className="text-xs" style={{ color: "#8F92A1" }}>{k}</span>
-                  <span className="text-xs font-mono" style={{ color: "#E4E5EA" }}>{v}</span>
-                </div>
-              ))}
-              <div className="flex justify-between pt-1.5">
-                <span className="text-xs" style={{ color: "#8F92A1" }}>Reference</span>
-                <span className="text-xs font-mono" style={{ color: "#FF7A00" }}>REQ-{Date.now().toString().slice(-6)}</span>
-              </div>
-            </div>
-
-            <div
-              className="w-full flex gap-2.5 p-3 rounded text-xs text-left mb-6"
-              style={{ background: "rgba(255,122,0,0.07)", border: "1px solid rgba(255,122,0,0.15)", color: "#8F92A1" }}
-            >
-              <Info size={13} color="#FF7A00" className="shrink-0 mt-0.5" />
-              <span>
-                Do not submit duplicate requests. If you have not received a response within 48 hours, contact your local system administrator or IT helpdesk.
-              </span>
-            </div>
 
             <button
               onClick={() => onNavigate("login")}
-              className="px-6 py-2.5 rounded text-sm font-semibold"
+              className="px-6 py-2.5 rounded text-sm font-semibold cursor-pointer shadow-md"
               style={{ background: "#FF7A00", color: "#0D0E12", fontFamily: "'Poppins', sans-serif" }}
             >
               Back to Sign In
@@ -242,8 +239,8 @@ export default function RequestAccessScreen({ onNavigate }) {
           </div>
         )}
 
-        <p className="text-center text-xs mt-6" style={{ color: "#3A3D4A" }}>
-          RESTRICTED — Authorized Personnel Only · v2.4.1
+        <p className="text-center text-xs mt-6" style={{ color: "#4A4E5E" }}>
+          RESTRICTED — Authorized Agency Personnel Only
         </p>
       </div>
     </div>
