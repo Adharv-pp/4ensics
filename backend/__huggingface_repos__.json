@@ -1,1 +1,0 @@
-{"repos": [{"repoId": "google/vivit-b-16x2-kinetics400", "repoType": "model", "commitHash": "990d41c5f5e68d71edfdf7f754e407c13d2b8a36", "filePaths": ["model.safetensors"]}, {"repoId": "google/vivit-b-16x2-kinetics400", "repoType": "model", "commitHash": "8a7171a57f79b9aaa58bc8d977c002a0ea0f0d42", "filePaths": ["pytorch_model.bin", "preprocessor_config.json", "config.json"]}]}
