@@ -1,9 +1,3 @@
--- ==========================================================
--- 4ensics Database Schema (ERD Implementation)
--- Authentication System + 4 Detection Features (Image, Video, Audio, Text)
--- Database Engine: MySQL 8.0+
--- ==========================================================
-
 CREATE DATABASE IF NOT EXISTS `fourensics_db` 
   CHARACTER SET utf8mb4 
   COLLATE utf8mb4_unicode_ci;

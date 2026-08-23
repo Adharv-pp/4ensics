@@ -438,7 +438,7 @@ export default function DashboardScreen({ onNavigate, user, onLogout }) {
                             onNavigate("file-detail", f.id);
                           }}
                           className="p-1 rounded hover:bg-white/10 text-gray-400 hover:text-orange-400 transition-colors"
-                          title="Open Forensic Dossier"
+                          title="Open Forensic Report"
                         >
                           <ArrowUpRight size={15} />
                         </button>

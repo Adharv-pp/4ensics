@@ -15,9 +15,7 @@ from models import (
 
 logger = logging.getLogger("ForensicService")
 
-# =========================================================================
 # 1. USER & AUTH SERVICES
-# =========================================================================
 
 def hash_password(password: str) -> str:
     """Computes a SHA-256 hash for secure storage."""
@@ -259,10 +257,7 @@ def request_access(
     )
     return user, "Access request registered successfully. Administrator review pending."
 
-
-# =========================================================================
 # 2. BATCH & MEDIA UPLOAD SERVICES
-# =========================================================================
 
 def create_scan_batch(
     db: Session,
@@ -310,10 +305,7 @@ def create_media_upload(
     db.refresh(upload)
     return upload
 
-
-# =========================================================================
 # 3. ANALYSIS JOB & AI MODEL REGISTRY
-# =========================================================================
 
 def create_analysis_job(
     db: Session,
@@ -424,10 +416,7 @@ def get_default_scoring_config(db: Session) -> Optional[ScoringConfig]:
         config = db.query(ScoringConfig).first()
     return config
 
-
-# =========================================================================
 # 4. ANALYSIS REPORT
-# =========================================================================
 
 def create_analysis_report(
     db: Session,
@@ -458,11 +447,8 @@ def create_analysis_report(
     db.refresh(report)
     return report
 
-
-# =========================================================================
 # 5. MODULAR FORENSIC FEATURE FUNCTIONS
 #    (Video, Image, Audio, Text + URL Scam Check)
-# =========================================================================
 
 # --- 5.1 VIDEO ANALYSIS ---
 def add_video_analysis(
@@ -509,7 +495,6 @@ def add_video_analysis(
     db.refresh(v_analysis)
     return v_analysis
 
-
 # --- 5.2 IMAGE ANALYSIS (Modular Function for Image Forensics) ---
 def add_image_analysis(
     db: Session,
@@ -547,7 +532,6 @@ def add_image_analysis(
     db.refresh(img_record)
     return img_record
 
-
 # --- 5.3 AUDIO ANALYSIS (Modular Function for Audio Forensics) ---
 def add_audio_analysis(
     db: Session,
@@ -580,7 +564,6 @@ def add_audio_analysis(
     db.commit()
     db.refresh(audio_record)
     return audio_record
-
 
 # --- 5.4 TEXT ANALYSIS & URL SCAM CHECK (Modular Function) ---
 def add_text_analysis(
@@ -646,10 +629,7 @@ def add_url_scam_check(
     db.refresh(url_check)
     return url_check
 
-
-# =========================================================================
 # 6. HUMAN AUDIT / REVIEW SERVICES
-# =========================================================================
 
 def add_analysis_review(
     db: Session,
@@ -676,10 +656,7 @@ def add_analysis_review(
     db.refresh(review)
     return review
 
-
-# =========================================================================
 # 7. REPORT QUERIES & FULL DETAILS
-# =========================================================================
 
 def get_report_full_details(db: Session, report_id: str) -> Optional[Dict[str, Any]]:
     """Retrieves full nested report including all 4 module analyses, chunks, reviews, and upload info."""

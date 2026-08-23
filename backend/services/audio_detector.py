@@ -9,9 +9,8 @@ from transformers import WavLMModel
 
 logger = logging.getLogger("AudioDeepfakeDetector")
 
-# -------------------------------------------------------------
 # 1. MODEL ARCHITECTURE
-# -------------------------------------------------------------
+
 class DeepfakeClassifier(nn.Module):
     def __init__(self, input_dim=3072):
         super().__init__()
@@ -29,9 +28,8 @@ class DeepfakeClassifier(nn.Module):
     def forward(self, x):
         return self.net(x)
 
-# -------------------------------------------------------------
 # 2. AUDIO DEEPFAKE DETECTOR ENGINE
-# -------------------------------------------------------------
+
 class AudioDeepfakeDetector:
     def __init__(self, weights_path=None):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -78,10 +76,14 @@ class AudioDeepfakeDetector:
             logger.error(f"Error initializing Audio Deepfake models: {e}")
 
     def extract_audio(self, file_path):
-        """Extracts and normalizes audio waveform at 16kHz mono."""
+        """Extracts and normalizes audio waveform at 16kHz mono using soundfile/pydub/moviepy without torchcodec error."""
         ext = os.path.splitext(file_path)[1].lower()
         temp_audio_path = f"temp_extracted_{os.getpid()}_{os.path.basename(file_path)}.wav"
         
+        waveform = None
+        sr = self.target_sr
+        
+        # 1. Video containers -> extract audio track via moviepy
         if ext in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
             try:
                 try:
@@ -94,21 +96,67 @@ class AudioDeepfakeDetector:
                     raise ValueError("Video has no audio track!")
                 video.audio.write_audiofile(temp_audio_path, fps=self.target_sr, codec='pcm_s16le', logger=None)
                 video.close()
-                waveform, sr = torchaudio.load(temp_audio_path)
+                
+                # Load extracted WAV via soundfile
+                import soundfile as sf
+                data, sr = sf.read(temp_audio_path)
+                waveform = torch.from_numpy(data).float()
+                if waveform.ndim == 1:
+                    waveform = waveform.unsqueeze(0)
+                elif waveform.ndim == 2 and waveform.shape[0] > waveform.shape[1]:
+                    waveform = waveform.t()
                 if os.path.exists(temp_audio_path):
                     try: os.remove(temp_audio_path)
                     except: pass
             except Exception as e:
-                logger.warning(f"MoviePy video audio extraction notice ({e}), attempting direct torchaudio load...")
-                waveform, sr = torchaudio.load(file_path)
+                logger.warning(f"MoviePy video audio extraction issue: {e}")
+                if os.path.exists(temp_audio_path):
+                    try: os.remove(temp_audio_path)
+                    except: pass
+                # Attempt direct soundfile or pydub fallback
+                try:
+                    import soundfile as sf
+                    data, sr = sf.read(file_path)
+                    waveform = torch.from_numpy(data).float().unsqueeze(0)
+                except Exception:
+                    from pydub import AudioSegment
+                    seg = AudioSegment.from_file(file_path).set_frame_rate(self.target_sr).set_channels(1)
+                    samples = np.array(seg.get_array_of_samples(), dtype=np.float32) / 32768.0
+                    waveform = torch.from_numpy(samples).unsqueeze(0)
+                    sr = self.target_sr
         else:
-            waveform, sr = torchaudio.load(file_path)
+            # 2. Audio files (.wav, .mp3, .flac, .ogg, .m4a, .aac)
+            try:
+                import soundfile as sf
+                data, sr = sf.read(file_path)
+                waveform = torch.from_numpy(data).float()
+                if waveform.ndim == 1:
+                    waveform = waveform.unsqueeze(0)
+                elif waveform.ndim == 2 and waveform.shape[0] > waveform.shape[1]:
+                    waveform = waveform.t()
+            except Exception as sf_err:
+                logger.info(f"soundfile read fallback to pydub ({sf_err})")
+                try:
+                    from pydub import AudioSegment
+                    seg = AudioSegment.from_file(file_path).set_frame_rate(self.target_sr).set_channels(1)
+                    samples = np.array(seg.get_array_of_samples(), dtype=np.float32) / 32768.0
+                    waveform = torch.from_numpy(samples).unsqueeze(0)
+                    sr = self.target_sr
+                except Exception as pydub_err:
+                    logger.warning(f"pydub fallback error: {pydub_err}, attempting torchaudio...")
+                    try:
+                        waveform, sr = torchaudio.load(file_path, backend="soundfile")
+                    except Exception:
+                        waveform, sr = torchaudio.load(file_path)
             
-        if sr != self.target_sr:
+        if sr != self.target_sr and waveform is not None:
             waveform = torchaudio.functional.resample(waveform, sr, self.target_sr)
             
-        if waveform.shape[0] > 1:
+        if waveform is not None and waveform.shape[0] > 1:
             waveform = torch.mean(waveform, dim=0, keepdim=True)
+            
+        if waveform is None:
+            raise ValueError(f"Could not load audio data from {file_path}")
             
         waveform = waveform.squeeze(0)
         max_val = waveform.abs().max()

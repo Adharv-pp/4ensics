@@ -36,6 +36,8 @@ from services.forensic_service import (
 )
 from services.email_service import send_user_added_email
 from services.audio_detector import get_audio_detector, AudioDeepfakeDetector
+from services.image_detector import get_image_detector, ImageDeepfakeDetector
+from services.text_detector import get_text_detector, TextDetector
 from init_db import initialize_database
 
 logging.basicConfig(level=logging.INFO)
@@ -113,9 +115,7 @@ def startup_event():
     except Exception as e:
         logger.error(f"Failed to initialize Audio Deepfake Detector: {e}")
 
-# =========================================================================
 # AUTHENTICATION & USER MANAGEMENT ENDPOINTS
-# =========================================================================
 
 class LoginRequest(BaseModel):
     username: str
@@ -153,7 +153,6 @@ class UpdateRoleRequest(BaseModel):
     role: str
     status: Optional[str] = "active"
 
-
 @app.post("/api/auth/login")
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
     user = authenticate_user(db, payload.username, payload.password)
@@ -167,7 +166,6 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
         "token": session.refresh_token_hash,
         "user": user.to_dict()
     }
-
 
 @app.post("/api/auth/register")
 def register(payload: RegisterRequest, db: Session = Depends(get_db)):
@@ -185,7 +183,6 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     )
     return {"status": "success", "message": "User registered successfully.", "user": user.to_dict()}
 
-
 @app.post("/api/auth/forgot-password")
 def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
     user = get_user_by_email(db, payload.email)
@@ -199,14 +196,12 @@ def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db
         "debug_code": code
     }
 
-
 @app.post("/api/auth/reset-password")
 def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
     success, msg = reset_password_with_code(db, payload.email, payload.code, payload.new_password)
     if not success:
         raise HTTPException(status_code=400, detail=msg)
     return {"status": "success", "message": msg}
-
 
 @app.post("/api/auth/request-access")
 def post_request_access(payload: RequestAccessRequest, db: Session = Depends(get_db)):
@@ -224,7 +219,6 @@ def post_request_access(payload: RequestAccessRequest, db: Session = Depends(get
         "user_id": user.user_id
     }
 
-
 @app.get("/api/auth/me")
 def get_current_user(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
     if not authorization:
@@ -241,7 +235,6 @@ def get_current_user(authorization: Optional[str] = Header(None), db: Session = 
     user = get_user_by_id(db, session.user_id)
     return {"status": "success", "user": user.to_dict()}
 
-
 @app.post("/api/auth/logout")
 def logout(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
     if authorization:
@@ -249,10 +242,7 @@ def logout(authorization: Optional[str] = Header(None), db: Session = Depends(ge
         revoke_session(db, token)
     return {"status": "success", "message": "Signed out successfully."}
 
-
-# =========================================================================
 # AGENCY USER ADMINISTRATION ENDPOINTS
-# =========================================================================
 
 @app.get("/api/users")
 def list_agency_users(db: Session = Depends(get_db)):
@@ -262,7 +252,6 @@ def list_agency_users(db: Session = Depends(get_db)):
         "count": len(users),
         "users": [u.to_dict() for u in users]
     }
-
 
 @app.post("/api/users/add")
 def add_agency_user(payload: AddUserRequest, db: Session = Depends(get_db)):
@@ -298,14 +287,12 @@ def add_agency_user(payload: AddUserRequest, db: Session = Depends(get_db)):
         "email_dispatched": email_sent
     }
 
-
 @app.put("/api/users/{user_id}/role")
 def update_role(user_id: str, payload: UpdateRoleRequest, db: Session = Depends(get_db)):
     user = update_user_role(db, user_id, payload.role, payload.status)
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
     return {"status": "success", "message": "User permissions updated.", "user": user.to_dict()}
-
 
 @app.delete("/api/users/{user_id}")
 def remove_user(user_id: str, db: Session = Depends(get_db)):
@@ -314,10 +301,7 @@ def remove_user(user_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="User not found.")
     return {"status": "success", "message": "User deleted successfully."}
 
-
-# =========================================================================
 # HELPER FUNCTIONS & OPENCV FRAME EXTRACTOR
-# =========================================================================
 
 def compute_sha256(filepath: str) -> str:
     sha256_hash = hashlib.sha256()
@@ -391,9 +375,7 @@ def run_inference(frames):
         
     return fake_prob, real_prob
 
-# =========================================================================
 # SYSTEM HEALTH & DB ENDPOINTS
-# =========================================================================
 
 @app.get("/")
 @app.get("/health")
@@ -411,9 +393,7 @@ def db_health_check():
     """Checks MySQL database connection."""
     return test_connection()
 
-# =========================================================================
 # MULTI-MODAL ANALYSIS ENDPOINTS (/analyze and /detect)
-# =========================================================================
 
 @app.post("/analyze")
 @app.post("/detect")
@@ -421,13 +401,15 @@ async def analyze_media(
     file: UploadFile = File(...),
     mode: str = Form("deep"),
     media_type: Optional[str] = Form(None),
+    model_choice: Optional[str] = Form("All models combined (recommended)"),
     user_email: Optional[str] = Form("analyst@4ensics.ai"),
     batch_id: Optional[str] = Form(None),
     db: Session = Depends(get_db)
 ):
     """
-    Accepts Video or Audio files, performs multi-modal forensic analysis 
-    (ViViT for video, WavLM for audio), and persists all records to MySQL.
+    Accepts Video, Audio, Image, or Document files, performs multi-modal forensic analysis 
+    (ViViT for video, WavLM for audio, 4-Model Ensemble for image, RoBERTa for text), 
+    and persists all records to MySQL.
     """
     ext = os.path.splitext(file.filename)[1].lower()
     video_exts = {".mp4", ".mkv", ".avi", ".mov", ".webm", ".m4v"}
@@ -435,14 +417,16 @@ async def analyze_media(
     
     is_video = ext in video_exts or media_type == "video"
     is_audio = ext in audio_exts or media_type == "audio"
+    is_image = ext in {".jpg", ".jpeg", ".png", ".bmp", ".webp"} or media_type == "image"
+    is_doc = ext in {".pdf", ".txt"} or media_type in ["document", "text"]
 
-    if not is_video and not is_audio:
+    if not is_video and not is_audio and not is_image and not is_doc:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported file format '{ext}'. Supported formats: {', '.join(sorted(video_exts | audio_exts))}"
+            detail=f"Unsupported file format '{ext}'."
         )
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix=ext or (".mp4" if is_video else ".wav")) as tmp_file:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=ext or ".dat") as tmp_file:
         shutil.copyfileobj(file.file, tmp_file)
         temp_filepath = tmp_file.name
 
@@ -456,11 +440,11 @@ async def analyze_media(
             user = db.query(AppUser).first()
         user_id = user.user_id if user else "anonymous"
 
-        # Record media upload & analysis job
+        m_type = "audio" if is_audio else ("image" if is_image else ("document" if is_doc else "video"))
         upload_record = create_media_upload(
             db=db,
             user_id=user_id,
-            media_type="audio" if is_audio else "video",
+            media_type=m_type,
             file_format=ext.lstrip("."),
             file_hash_sha256=file_hash,
             batch_id=batch_id,
@@ -475,9 +459,100 @@ async def analyze_media(
         )
         scoring_cfg = get_default_scoring_config(db)
 
-        # -------------------------------------------------------------
-        # 1. AUDIO ANALYSIS PIPELINE (WavLM 4s Sliding Window)
-        # -------------------------------------------------------------
+        # 1. IMAGE FORENSIC PIPELINE (4-Model Ensemble + ELA / FFT)
+        if is_image:
+            ai_model_record = get_or_create_ai_model(
+                db,
+                name="Image Forensic Ensemble Engine",
+                version="4-Model Multi-Variant",
+                modality="image",
+                accuracy=0.962
+            )
+            detector = get_image_detector()
+            img_result = detector.analyze(temp_filepath, model_choice=model_choice or "All models combined (recommended)")
+
+            score_val = img_result["risk_score_num"]
+            priority = img_result["priority_level"]
+            risk_band = "HIGH" if priority == "High" else ("MEDIUM" if priority == "Medium" else "LOW")
+            verdict = "SYNTHETIC" if priority != "Low" else "AUTHENTIC"
+
+            report = create_analysis_report(
+                db=db,
+                upload_id=upload_record.upload_id,
+                job_id=job_record.job_id,
+                scoring_config_id=scoring_cfg.scoring_config_id if scoring_cfg else None,
+                fused_score=score_val,
+                confidence=round(score_val if priority != "Low" else 100.0 - score_val, 1),
+                risk_band=risk_band,
+                verdict=verdict,
+                summary_text=img_result["recommendation"]
+            )
+            add_image_analysis(
+                db=db,
+                report_id=report.report_id,
+                model_id=ai_model_record.model_id,
+                ela_score=score_val,
+                fake_probability=score_val,
+                verdict=verdict
+            )
+            update_job_status(db, job_record.job_id, "completed", 100.0)
+
+            return JSONResponse(content={
+                "status": "success",
+                "media_type": "image",
+                "report_id": report.report_id,
+                "upload_id": upload_record.upload_id,
+                **img_result
+            })
+
+        # 2. DOCUMENT FORENSIC PIPELINE (PDF / TXT)
+        if is_doc:
+            ai_model_record = get_or_create_ai_model(
+                db,
+                name="Document & Text Authenticity Engine",
+                version="RoBERTa-v2",
+                modality="text",
+                accuracy=0.954
+            )
+            detector = get_text_detector()
+            doc_result = detector.analyze_document(temp_filepath)
+
+            ai_prob = doc_result["ai_probability"]
+            is_ai = ai_prob >= 50.0
+            verdict = "AI-Generated" if is_ai else "Human-Written"
+            risk_band = "HIGH" if ai_prob >= 65.0 else ("MEDIUM" if ai_prob >= 40.0 else "LOW")
+
+            report = create_analysis_report(
+                db=db,
+                upload_id=upload_record.upload_id,
+                job_id=job_record.job_id,
+                scoring_config_id=scoring_cfg.scoring_config_id if scoring_cfg else None,
+                fused_score=ai_prob,
+                confidence=ai_prob if is_ai else doc_result["human_probability"],
+                risk_band=risk_band,
+                verdict=verdict,
+                summary_text=f"Text analyzed as {verdict} with {doc_result['priority_score']}% priority score."
+            )
+            add_text_analysis(
+                db=db,
+                report_id=report.report_id,
+                model_id=ai_model_record.model_id,
+                perplexity_score=doc_result.get("perplexity", 0.0),
+                burstiness_score=doc_result.get("burstiness", 0.0),
+                fake_probability=ai_prob,
+                verdict=verdict
+            )
+            update_job_status(db, job_record.job_id, "completed", 100.0)
+
+            return JSONResponse(content={
+                "status": "success",
+                "media_type": "document",
+                "report_id": report.report_id,
+                "upload_id": upload_record.upload_id,
+                **doc_result
+            })
+
+        # 3. AUDIO ANALYSIS PIPELINE (WavLM 4s Sliding Window)
         if is_audio:
             ai_model_record = get_or_create_ai_model(
                 db,
@@ -542,9 +617,8 @@ async def analyze_media(
                 "model_engine": audio_result["model_engine"]
             })
 
-        # -------------------------------------------------------------
         # 2. VIDEO ANALYSIS PIPELINE (ViViT Transformer)
-        # -------------------------------------------------------------
+
         ai_model_record = get_or_create_ai_model(
             db,
             name="ViViT Video Deepfake Classifier",
@@ -722,9 +796,28 @@ async def analyze_media(
             except Exception:
                 pass
 
-# =========================================================================
 # DEDICATED AUDIO ENDPOINTS
-# =========================================================================
+
+@app.post("/analyze/image")
+@app.post("/detect/image")
+async def analyze_image_dedicated(
+    file: UploadFile = File(...),
+    model_choice: Optional[str] = Form("All models combined (recommended)"),
+    user_email: Optional[str] = Form("analyst@4ensics.ai"),
+    batch_id: Optional[str] = Form(None),
+    db: Session = Depends(get_db)
+):
+    """Direct image deepfake and forensic detection endpoint."""
+    return await analyze_media(
+        file=file,
+        mode="deep",
+        media_type="image",
+        model_choice=model_choice,
+        user_email=user_email,
+        batch_id=batch_id,
+        db=db
+    )
+
 
 @app.post("/analyze/audio")
 @app.post("/detect/audio")
@@ -744,9 +837,45 @@ async def analyze_audio_dedicated(
         db=db
     )
 
-# =========================================================================
+
+@app.post("/analyze/video")
+@app.post("/detect/video")
+async def analyze_video_dedicated(
+    file: UploadFile = File(...),
+    user_email: Optional[str] = Form("analyst@4ensics.ai"),
+    batch_id: Optional[str] = Form(None),
+    db: Session = Depends(get_db)
+):
+    """Direct video deepfake detection endpoint using ViViT."""
+    return await analyze_media(
+        file=file,
+        mode="deep",
+        media_type="video",
+        user_email=user_email,
+        batch_id=batch_id,
+        db=db
+    )
+
+
+@app.post("/analyze/document")
+@app.post("/detect/document")
+async def analyze_document_dedicated(
+    file: UploadFile = File(...),
+    user_email: Optional[str] = Form("analyst@4ensics.ai"),
+    batch_id: Optional[str] = Form(None),
+    db: Session = Depends(get_db)
+):
+    """Direct document stylometry and AI text detection endpoint."""
+    return await analyze_media(
+        file=file,
+        mode="deep",
+        media_type="document",
+        user_email=user_email,
+        batch_id=batch_id,
+        db=db
+    )
+
 # MODULAR SERVICE ENDPOINTS (Image, Audio, Text, Human Review)
-# =========================================================================
 
 class ImageAnalysisInput(BaseModel):
     report_id: str
@@ -780,7 +909,6 @@ def post_image_analysis(payload: ImageAnalysisInput, db: Session = Depends(get_d
     )
     return {"status": "success", "image_analysis_id": result.image_analysis_id, "data": result.to_dict()}
 
-
 class AudioAnalysisInput(BaseModel):
     report_id: str
     model_id: Optional[str] = None
@@ -809,7 +937,6 @@ def post_audio_analysis(payload: AudioAnalysisInput, db: Session = Depends(get_d
     )
     return {"status": "success", "audio_analysis_id": result.audio_analysis_id, "data": result.to_dict()}
 
-
 class TextAnalysisInput(BaseModel):
     report_id: str
     model_id: Optional[str] = None
@@ -836,7 +963,6 @@ def post_text_analysis(payload: TextAnalysisInput, db: Session = Depends(get_db)
     )
     return {"status": "success", "text_analysis_id": result.text_analysis_id, "data": result.to_dict()}
 
-
 class ReviewInput(BaseModel):
     report_id: str
     reviewed_by: str
@@ -854,7 +980,6 @@ def post_analysis_review(payload: ReviewInput, db: Session = Depends(get_db)):
         notes=payload.notes
     )
     return {"status": "success", "review_id": result.review_id, "data": result.to_dict()}
-
 
 @app.get("/api/reports")
 def get_reports(
@@ -881,7 +1006,6 @@ def get_reports(
         "reports": [r.to_dict() for r in results]
     }
 
-
 @app.get("/api/reports/{report_id}")
 def get_report(report_id: str, db: Session = Depends(get_db)):
     """Fetches comprehensive forensic dossier including timeline chunks, audio/image analysis, and reviews."""
@@ -890,6 +1014,39 @@ def get_report(report_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail=f"Report '{report_id}' not found.")
     return {"status": "success", "report": report.to_dict()}
 
+
+class TextInputModel(BaseModel):
+    text: str
+
+class URLInputModel(BaseModel):
+    url: str
+
+@app.post("/analyze/text")
+@app.post("/detect/text")
+def detect_text_route(payload: TextInputModel):
+    detector = get_text_detector()
+    return detector.analyze_text(payload.text)
+
+@app.post("/analyze/url")
+@app.post("/detect/url")
+def detect_url_route(payload: URLInputModel):
+    detector = get_text_detector()
+    return detector.scan_url(payload.url)
+
+@app.post("/analyze/whatsapp")
+@app.post("/detect/whatsapp")
+def detect_whatsapp_route(file: UploadFile = File(...)):
+    unique_filename = f"temp_wa_{secrets.token_hex(8)}_{file.filename}"
+    temp_filepath = os.path.join(tempfile.gettempdir(), unique_filename)
+    with open(temp_filepath, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    try:
+        detector = get_text_detector()
+        return detector.analyze_whatsapp(temp_filepath)
+    finally:
+        if os.path.exists(temp_filepath):
+            try: os.remove(temp_filepath)
+            except: pass
 
 if __name__ == "__main__":
     import uvicorn

@@ -57,8 +57,15 @@ export default function App() {
   };
 
   const handleNavigate = (s, id) => {
-    if (id) setSelectedFileId(id);
-    setScreen(s);
+    let targetScreen = s;
+    if (s === "fileDetail" || s === "file-detail" || s === "reportDetail") {
+      targetScreen = "file-detail";
+    }
+    if (id) {
+      const fileIdStr = typeof id === "object" && id !== null ? (id.id || id.reportId || id.fileId) : id;
+      setSelectedFileId(fileIdStr);
+    }
+    setScreen(targetScreen);
   };
 
   if (screen === "login") {
@@ -104,7 +111,7 @@ export default function App() {
             onLogout={handleLogout}
           />
         )}
-        {screen === "file-detail" && (
+        {(screen === "file-detail" || screen === "fileDetail") && (
           <FileDetailScreen
             fileId={selectedFileId || "f001"}
             onBack={() => setScreen("reports")}

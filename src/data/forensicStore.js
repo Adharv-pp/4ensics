@@ -89,12 +89,7 @@ const INITIAL_REPORTS = [
     mimeType: "audio/mpeg",
     dimensions: "16:42 Duration (44.1 kHz)",
     summary: "Acoustic spectrogram reveals unnatural pitch micro-variations and potential neural voice cloning.",
-    signals: [
-      { label: "Neural voice synthesis marker", value: 68, status: "medium" },
-      { label: "Jitter / Shimmer deviation", value: 64, status: "medium" },
-      { label: "Harmonic-to-Noise Ratio (HNR)", value: 55, status: "medium" },
-      { label: "Formant trajectory variance", value: 42, status: "low" },
-    ],
+    signals: [],
     metadata: {
       "File Name": "interview_audio.mp3",
       "File Size": "18.7 MB",
@@ -148,7 +143,7 @@ const INITIAL_REPORTS = [
   {
     id: "f004",
     name: "statement_doc_v2.txt",
-    type: "text",
+    type: "document",
     size: "42 KB",
     sizeBytes: 43008,
     uploadedAt: SEED_3.formatted,
@@ -172,8 +167,46 @@ const INITIAL_REPORTS = [
       "File Size": "42 KB",
       "MIME Type": "text/plain (UTF-8)",
       "SHA-256": "4a7d1ed414474e4033ac29ccb8653d9b1a03e1a8a25c11579df640032b4ab5f2",
-      "Word Count": "1,420 words",
-      "Analysis Pipeline": "NLP Stylometry & Burstiness Detector"
+      "Verdict": "AI-Generated",
+      "AI Probability": "87.4%",
+      "Human Probability": "12.6%",
+      "Perplexity": "24.8",
+      "Burstiness": "0.31",
+      "TTR (Type-Token Ratio)": "0.42",
+      "Analysis Pipeline": "RoBERTa Deep Neural Stylometry"
+    },
+    rawTextData: {
+      verdict: "AI-Generated",
+      ai_probability: 87.4,
+      human_probability: 12.6,
+      priority_score: 87.4,
+      perplexity: 24.8,
+      burstiness: 0.31,
+      ttr: 0.42,
+      style_score: 84.1,
+      band: "HIGH PRIORITY",
+      sentence_analysis: [
+        {
+          sentence: "In conclusion, it is important to remember that artificial intelligence plays a crucial role in modern computational paradigms",
+          ai_score: 96.2
+        },
+        {
+          sentence: "Furthermore, the utilization of advanced multi-layered neural architectures enables comprehensive statistical evaluation",
+          ai_score: 91.5
+        },
+        {
+          sentence: "The suspect was seen leaving the building at 10:45 PM on Tuesday night according to eyewitness testimony",
+          ai_score: 18.4
+        },
+        {
+          sentence: "Additionally, numerous factors must be carefully taken into consideration when assessing these empirical results",
+          ai_score: 88.7
+        },
+        {
+          sentence: "I walked over to the lobby counter and asked the security guard for the visitor logs",
+          ai_score: 12.1
+        }
+      ]
     },
     history: [
       { ts: SEED_3.formatted, actor: "System", action: "Statement document uploaded." },
@@ -396,6 +429,7 @@ export const forensicStore = {
     const uploadedStr = formatDateTime(currentDate);
 
     const reportWithDefaults = {
+      ...newReport,
       id: newReport.id || `f_${currentTs.toString(36)}`,
       name: newReport.name || "unnamed_media",
       type: newReport.type || "video",
@@ -598,3 +632,5 @@ export const forensicStore = {
     }
   }
 };
+
+export default forensicStore;

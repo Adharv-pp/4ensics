@@ -50,6 +50,8 @@ except (ImportError, ModuleNotFoundError):
 MODELS_DIR = os.path.dirname(os.path.abspath(__file__))
 VIVIT_MODEL_DIR = os.path.join(MODELS_DIR, "vivit", "checkpoint-2880")
 AUDIO_MODEL_PATH = os.path.join(MODELS_DIR, "audio", "wavlm_deepfake_head.pth")
+IMAGE_MODELS_DIR = os.path.join(MODELS_DIR, "image")
+TEXT_MODEL_DIR = os.path.join(MODELS_DIR, "text")
 
 __all__ = [
     "AppUser",

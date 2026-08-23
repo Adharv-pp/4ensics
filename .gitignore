@@ -33,11 +33,14 @@ wheels/
 models/vivit/checkpoint-*/
 models/audio/*.pth
 models/audio/*.pt
+models/image/
+models/text/
 deepfake_vivit_model/
 *.pth
 *.pt
 *.safetensors
 *.bin
+*.joblib
 *.ckpt
 *.onnx
 *.h5
