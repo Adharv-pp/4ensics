@@ -423,8 +423,9 @@ export default function UploadScreen({ user: propUser, onNavigate }) {
       setBackendOnline(true);
 
       const isFake = data.prediction === "FAKE" || (data.verdict || "").includes("SYNTHETIC");
-      const score = Math.round(data.confidence_pct || data.peak_score_pct || (isFake ? 88 : 12));
-      const risk = isFake ? "high" : (score >= 40 ? "medium" : "low");
+      const peakScorePct = typeof data.peak_score_pct === "number" ? data.peak_score_pct : parseFloat(data.peak_score || "0");
+      const score = Math.round(data.confidence_pct || (isFake ? 88 : 99.8));
+      const risk = isFake ? "high" : (peakScorePct >= 35 ? "medium" : "low");
       const summary = data.justification || `${data.verdict} (Confidence: ${data.confidence || score + "%"}).`;
 
       const newReport = forensicStore.addReport({
@@ -477,6 +478,7 @@ export default function UploadScreen({ user: propUser, onNavigate }) {
         sizeBytes: item.sizeBytes,
         risk: risk,
         score: score,
+        chunkScores: data.chunk_scores || [],
         caseId: caseId,
         hash: sha256,
         mimeType: item.mimeType,

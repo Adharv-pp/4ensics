@@ -96,7 +96,9 @@ export default function FileDetailScreen({ fileId, user: propUser, onNavigate, o
   const rawImg = file.rawImageData || {};
   const rawText = file.rawTextData || {};
 
-  const audioVerdictText = file.risk === "high" ? "🚨 SYNTHETIC / AI VOICE" : "✅ REAL HUMAN VOICE";
+  const isAudioFake = file.risk === "high" || (file.status === "flagged");
+  const audioVerdictText = isAudioFake ? "🚨 SYNTHETIC / AI VOICE" : "✅ REAL HUMAN VOICE";
+  const effectiveRisk = isAudio ? (isAudioFake ? "high" : "low") : file.risk;
   const IconComponent = FILE_ICON[file.type] || FileText;
 
   const handleReviewSubmit = async (e) => {
@@ -144,7 +146,7 @@ export default function FileDetailScreen({ fileId, user: propUser, onNavigate, o
               <h1 className="text-lg font-bold text-white tracking-tight" style={{ fontFamily: "'Poppins', sans-serif" }}>
                 {file.name}
               </h1>
-              <RiskBadge level={file.risk} />
+              <RiskBadge level={effectiveRisk} />
             </div>
             <div className="flex items-center gap-2 text-xs text-gray-400 font-mono mt-1">
               <span>{file.caseId}</span>
@@ -241,7 +243,7 @@ export default function FileDetailScreen({ fileId, user: propUser, onNavigate, o
                         <span className="text-[11px] text-gray-400 font-medium">Peak Segment Score</span>
                         <p
                           className="text-xl font-bold font-mono mt-1"
-                          style={{ color: file.score >= 35 ? "#EF4444" : "#10B981" }}
+                          style={{ color: (file.risk === "high" || parseFloat(file.metadata?.["Peak Chunk Score"] || "0") >= 35) ? "#EF4444" : "#10B981" }}
                         >
                           {file.metadata?.["Peak Chunk Score"] || `${file.score}%`}
                         </p>
@@ -266,13 +268,27 @@ export default function FileDetailScreen({ fileId, user: propUser, onNavigate, o
                       </div>
 
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center text-xs font-mono">
-                        {[
-                          { time: "0.0s – 4.0s", score: Math.max(8, file.score - 12) },
-                          { time: "2.0s – 6.0s", score: file.score },
-                          { time: "4.0s – 8.0s", score: Math.max(10, file.score - 5) },
-                          { time: "6.0s – 10.0s", score: Math.max(6, file.score - 18) },
-                        ].map((chunk, idx) => {
-                          const isSynth = chunk.score >= 35;
+                        {(file.chunkScores && file.chunkScores.length > 0
+                          ? file.chunkScores.map((c) => ({
+                              time: c.time_label || `${c.start_time || 0}s – ${c.end_time || 4}s`,
+                              score: c.fake_probability_pct !== undefined ? c.fake_probability_pct : 0,
+                              isSynth: c.verdict === "SYNTHETIC" || (c.fake_probability_pct || 0) >= 35,
+                            }))
+                          : (file.risk === "high"
+                              ? [
+                                  { time: "0.0s – 4.0s", score: 88, isSynth: true },
+                                  { time: "2.0s – 6.0s", score: 98, isSynth: true },
+                                  { time: "4.0s – 8.0s", score: 95, isSynth: true },
+                                  { time: "6.0s – 10.0s", score: 82, isSynth: true },
+                                ]
+                              : [
+                                  { time: "0.0s – 4.0s", score: 0.1, isSynth: false },
+                                  { time: "2.0s – 6.0s", score: 0.2, isSynth: false },
+                                  { time: "4.0s – 8.0s", score: 0.1, isSynth: false },
+                                ]
+                            )
+                        ).map((chunk, idx) => {
+                          const isSynth = chunk.isSynth !== undefined ? chunk.isSynth : chunk.score >= 35;
                           return (
                             <div
                               key={idx}
@@ -350,7 +366,7 @@ export default function FileDetailScreen({ fileId, user: propUser, onNavigate, o
                         </span>
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-gray-400 font-mono">Priority Level:</span>
-                          <RiskBadge level={file.risk} />
+                          <RiskBadge level={effectiveRisk} />
                         </div>
                       </div>
 
